@@ -6,14 +6,15 @@
 
 ## Pending
 
+- `RequestValidator` を新規実装し、`RequestApiHandler` の入力検証を委譲する
+- `S3KeyBuilder` を `RequestS3KeyBuilder` へ名称統一し、`RequestService` の参照を更新する
 - `POST /requests` のリクエスト/レスポンス項目を詳細化する
 - `GET /requests/{id}` のレスポンス項目を詳細化する
 - `GET /requests` の一覧レスポンス項目を詳細化する
-- エラー応答の形式を定義する
+- `GET /requests` の一覧取得は初期版では `Scan` とし、後続で `Query / GSI / paging` 最適化の要否を見直す
 - DynamoDBテーブル名と属性定義を具体化する
 - 初期版のAPI利用者制限の方法を決める
 - 承認機能追加時の拡張方針を整理する
-- 実装対象のSAMテンプレート構成を決める
 - GUI手順を実際のAWSコンソール操作レベルまで詳細化する
 - GUI確認後にCLIまたはIaCへ展開する手順を整理する
 - 動作確認手順を整理する
@@ -41,6 +42,12 @@
 - AWS公式ハンズオン前提のGUI実装手順と確認ポイントを `SPEC.md` に整理した
 - DynamoDBテーブル具体値とLambda環境変数を `SPEC.md` に整理した
 - MavenプロジェクトとJava Lambdaの最小雛形を追加した
+- 最小構成の `template.yaml` を追加し、SAMでのデプロイ構成を整理した
+- 生成済みJavaソースを起点に、設計へ戻すための整理方針を固めた
+- `DESIGN_RULES.md` を追加し、命名規則・例外方針・コメント方針・レイヤ責務方針を分離した
+- システム構成図とI/O整理表を `SPEC.md` と `処理フロー.drawio` に反映した
+- エラーレスポンス設計とCloudWatch Logs前提のログ方針を `SPEC.md` に整理した
+- 実装着手前の変更対象クラス整理（必須/影響のみ/保留）を `SPEC.md` に反映した
 
 ## Waiting For User
 

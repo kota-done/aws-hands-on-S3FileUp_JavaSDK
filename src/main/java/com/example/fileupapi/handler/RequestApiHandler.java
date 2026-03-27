@@ -14,6 +14,7 @@ import com.example.fileupapi.service.S3PresignService;
 import com.example.fileupapi.service.TimeProvider;
 import com.example.fileupapi.util.ApiResponseBuilder;
 import com.example.fileupapi.util.ObjectMapperFactory;
+import com.example.fileupapi.validator.RequestValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -23,6 +24,7 @@ import java.util.Map;
 public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
     private final ObjectMapper objectMapper;
     private final RequestService requestService;
+    private final RequestValidator requestValidator;
 
     public RequestApiHandler() {
         this(ObjectMapperFactory.create(), AppConfig.fromEnv());
@@ -41,6 +43,7 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
                 new RequestIdGenerator(),
                 new TimeProvider()
         );
+        this.requestValidator = new RequestValidator();
     }
 
     @Override
@@ -51,12 +54,13 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
 
             if ("POST".equalsIgnoreCase(method) && "/requests".equals(path)) {
                 CreateRequestInput request = objectMapper.readValue(input.getBody(), CreateRequestInput.class);
-                validateCreateRequest(request);
+                requestValidator.validateCreateRequest(request);
                 return ApiResponseBuilder.json(201, objectMapper.writeValueAsString(requestService.createRequest(request)));
             }
 
             if ("GET".equalsIgnoreCase(method) && path != null && path.matches("^/requests/[^/]+$")) {
                 String requestId = path.substring(path.lastIndexOf('/') + 1);
+                requestValidator.validateRequestId(requestId);
                 return requestService.findRequestById(requestId)
                         .map(detail -> ApiResponseBuilder.json(200, writeJson(detail)))
                         .orElseGet(() -> ApiResponseBuilder.json(404, writeJson(new ErrorResponse("Request not found"))));
@@ -74,18 +78,6 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
                 context.getLogger().log("Unhandled error: " + e.getMessage());
             }
             return ApiResponseBuilder.json(500, writeJson(new ErrorResponse("Internal server error")));
-        }
-    }
-
-    private void validateCreateRequest(CreateRequestInput request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body is required");
-        }
-        if (request.userId() == null || request.userId().isBlank()) {
-            throw new IllegalArgumentException("userId is required");
-        }
-        if (request.fileName() == null || request.fileName().isBlank()) {
-            throw new IllegalArgumentException("fileName is required");
         }
     }
 
