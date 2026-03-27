@@ -38,3 +38,6 @@ packaged.yml
 config/secrets.*
 private/
 .ssh/
+
+# Local article notes
+SESSION_ARTICLE.md
