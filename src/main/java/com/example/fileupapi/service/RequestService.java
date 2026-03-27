@@ -7,8 +7,6 @@ import com.example.fileupapi.dto.RequestListResponse;
 import com.example.fileupapi.model.RequestRecord;
 import com.example.fileupapi.model.RequestStatus;
 import com.example.fileupapi.repository.RequestRepository;
-import com.example.fileupapi.util.S3KeyBuilder;
-
 import java.util.Optional;
 
 public class RequestService {
@@ -32,7 +30,7 @@ public class RequestService {
     public CreateRequestResponse createRequest(CreateRequestInput input) {
         String requestId = requestIdGenerator.generate();
         String timestamp = timeProvider.now();
-        String s3Key = S3KeyBuilder.build(input.userId(), requestId, input.fileName());
+        String s3Key = RequestS3KeyBuilder.build(input.userId(), requestId, input.fileName());
 
         RequestRecord record = new RequestRecord(
                 requestId,

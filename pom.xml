@@ -40,11 +40,6 @@
       <version>${aws.sdk.version}</version>
     </dependency>
     <dependency>
-      <groupId>software.amazon.awssdk</groupId>
-      <artifactId>s3-presigner</artifactId>
-      <version>${aws.sdk.version}</version>
-    </dependency>
-    <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <version>${jackson.version}</version>

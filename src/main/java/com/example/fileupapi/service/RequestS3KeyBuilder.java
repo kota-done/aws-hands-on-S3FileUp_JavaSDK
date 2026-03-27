@@ -1,7 +1,7 @@
-package com.example.fileupapi.util;
+package com.example.fileupapi.service;
 
-public final class S3KeyBuilder {
-    private S3KeyBuilder() {
+public final class RequestS3KeyBuilder {
+    private RequestS3KeyBuilder() {
     }
 
     public static String build(String userId, String requestId, String fileName) {

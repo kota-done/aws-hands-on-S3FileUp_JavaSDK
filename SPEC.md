@@ -339,6 +339,76 @@ uploads/{userId}/{requestId}/{fileName}
 - エラー応答は最小限のメッセージ構成とし、まずは正常系の成立を優先する
 - 将来の承認機能追加時に、リクエスト項目やステータスを拡張しやすい形にしておく
 
+## エラーレスポンス設計
+
+### 基本方針
+
+- 例外の意味付けは Java プログラム内の独自例外で管理する
+- 利用者向けの API エラーレスポンスと、運用者向けの CloudWatch Logs は分離して扱う
+- API レスポンスには内部実装やスタックトレースを含めない
+- 詳細な調査情報は CloudWatch Logs に記録する
+
+### レイヤごとの役割
+
+- `Validator`
+  - 入力不正を検知し、`ValidationException` を送出する
+- `Service`
+  - 業務ルール違反や未存在を判定し、独自例外を送出する
+- `Repository`
+  - 外部アクセス失敗時に、必要に応じて `SystemException` へ変換する
+- `Handler`
+  - 例外を受け取り、HTTP ステータスとエラーレスポンスへ変換する
+  - CloudWatch Logs へ必要情報を出力する
+
+### 初期版のエラーレスポンス形式
+
+初期版では、利用者向けレスポンスは最小構成とする。
+
+```json
+{
+  "message": "userId is required"
+}
+```
+
+将来拡張時は、必要に応じて以下の項目追加を検討する。
+
+- `code`
+- `requestId`
+- `details`
+
+### 初期版のHTTPステータス対応
+
+- `400 Bad Request`
+  - 入力不正
+- `404 Not Found`
+  - 対象データなし
+- `500 Internal Server Error`
+  - 想定外障害、外部サービス障害
+
+`409 Conflict` などの業務エラー専用ステータスは、将来の状態遷移設計や承認機能設計とあわせて検討する。
+
+### CloudWatch Logs 方針
+
+- CloudWatch Logs に出力できることを前提に Lambda 実行ロールへ権限を付与する
+- Java 側では `Handler` をログ出力の入口とする
+- ログには利用者向けメッセージではなく、運用者が追跡しやすい情報を出力する
+
+### 初期版でログに含める項目
+
+- HTTP メソッド
+- パス
+- Lambda の `awsRequestId`
+- 業務上の `requestId`
+  - 取得できる場合のみ
+- 例外クラス名
+- 例外メッセージ
+
+### 追跡方針
+
+- 初期版では Lambda 実行時に付与される `awsRequestId` をログ上の追跡キーとして使う
+- 業務上の `requestId` が存在する場合は、あわせてログへ出力する
+- API レスポンス側へ追跡IDを返すかどうかは、後続フェーズで必要性を見て判断する
+
 ## 想定アーキテクチャ
 
 ```mermaid
@@ -388,6 +458,17 @@ flowchart LR
 5. API Gateway 経由で `requestId` と `uploadUrl` を返す
 6. 利用者が Presigned URL を使って S3 にファイルを直接アップロードする
 7. 利用者が `GET /requests/{id}` や `GET /requests` で状態を確認する
+
+### I/O整理表
+
+| No. | 入力元 | 出力先 | I/O内容 | 形式 | 同期区分 | 備考 |
+|---|---|---|---|---|---|---|
+| 1 | 利用者PC | API Gateway | `POST /requests` `GET /requests/{id}` `GET /requests` | HTTP / JSON | 同期 | API の入口 |
+| 2 | API Gateway | Lambda | API イベント連携 | API Gateway Proxy Event | 同期 | Lambda を都度起動する |
+| 3 | Lambda | DynamoDB | 受付保存、単票取得、一覧取得 | DynamoDB Item | 同期 | `PutItem` `GetItem` `Scan` を想定 |
+| 4 | Lambda | S3 | Presigned URL 発行対象の指定 | S3 PutObject Presign Request | 同期 | アップロードURLを生成する |
+| 5 | Lambda / API Gateway | 利用者PC | `requestId` `uploadUrl` `status` などの応答 | HTTP / JSON | 同期 | 正常系・異常系のレスポンスを含む |
+| 6 | 利用者PC | S3 | ファイルアップロード | HTTP PUT / Object | 同期 | Presigned URL を用いた直接アップロード |
 
 ### 初期版で図に含めない要素
 
@@ -457,6 +538,33 @@ flowchart LR
 - REST APIとDynamoDBの骨格は `aws-samples/aws-sam-java-rest` を基準に考える
 - Presigned URL発行の考え方は `aws-samples/generate-s3-accelerate-presigned-url` を基準に考える
 - 将来拡張の参考として `aws-samples/bobs-used-bookstore-serverless` の設計を参照する
+
+## SAMテンプレート方針
+
+### 初期版の構成
+
+- `AWS::Serverless::Function`
+  - Java 21 の Lambda 関数として `RequestApiHandler` をデプロイする
+- `AWS::Serverless::Api`
+  - `POST /requests` `GET /requests` `GET /requests/{id}` を公開する
+- `AWS::DynamoDB::Table`
+  - テーブル名は `requests`
+  - パーティションキーは `requestId`
+- `AWS::S3::Bucket`
+  - アップロード先バケットを作成し、パブリックアクセスは無効化したまま利用する
+
+### Lambda環境変数
+
+- `REQUESTS_TABLE_NAME`
+  - `requests` テーブル名を渡す
+- `UPLOAD_BUCKET_NAME`
+  - アップロード先S3バケット名を渡す
+
+### 権限方針
+
+- Lambdaには `requests` テーブルへの読み書き権限を付与する
+- LambdaにはPresigned URL発行に必要なS3操作権限を付与する
+- 初期版では最小構成を優先し、権限は対象リソースに限定する
 
 ### 後続フェーズ
 
@@ -616,8 +724,16 @@ flowchart LR
   - API Gatewayからのイベントを受け取る
   - HTTPメソッドとパスに応じて処理を振り分ける
   - リクエストDTOの読み取りとレスポンスDTOの返却を行う
+  - パスパラメータは取り出しまでを担当し、妥当性チェックはValidatorへ委譲する
 
-#### 2. DTO
+#### 2. Validator
+
+- `RequestValidator`
+  - リクエストボディとパスパラメータの入力妥当性チェックを担当する
+  - 必須項目、空文字、形式チェックを行う
+  - `validateCreateRequest(...)` と `validateRequestId(...)` のように、メソッドで責務を分ける
+
+#### 3. DTO
 
 - `CreateRequestInput`
   - `POST /requests` の入力を表現する
@@ -632,7 +748,7 @@ flowchart LR
 - `ErrorResponse`
   - エラー応答を表現する
 
-#### 3. Model
+#### 4. Model
 
 - `RequestRecord`
   - DynamoDBに保存する受付データを表現する
@@ -640,7 +756,7 @@ flowchart LR
 - `RequestStatus`
   - `RECEIVED`, `PROCESSING`, `COMPLETED`, `FAILED` を表すEnum
 
-#### 4. Service
+#### 5. Service
 
 - `RequestService`
   - 受付登録、単体取得、一覧取得の業務処理を担当する
@@ -650,35 +766,117 @@ flowchart LR
   - `requestId` の採番を担当する
 - `TimeProvider`
   - `createdAt`, `updatedAt` の時刻生成を担当する
+- `RequestS3KeyBuilder`
+  - 受付API用のS3キーを組み立てる
+  - `uploads/{userId}/{requestId}/{fileName}` 形式を責務として持つ
 
-#### 5. Repository
+#### 6. Repository
 
 - `RequestRepository`
   - DynamoDBへの保存、単体取得、一覧取得を担当する
+  - DynamoDB Item と `RequestRecord` の相互変換を担当する
 
-#### 6. Utility
+#### 7. Utility
 
 - `ApiResponseBuilder`
   - API Gateway向けレスポンス生成を担当する
 - `ObjectMapperFactory`
   - Jacksonの `ObjectMapper` 生成方針をまとめる
-- `S3KeyBuilder`
-  - `uploads/{userId}/{requestId}/{fileName}` 形式のS3キーを組み立てる
+
+### 実装前の変更対象クラス整理
+
+以下は、設計確定済みのクラス名を実装へ反映するための変更対象整理です。
+
+#### 必須（実装で変更が必要）
+
+| クラス名 | 現在の状態 | 変更内容 | 理由 | 主な影響先 |
+|---|---|---|---|---|
+| `RequestApiHandler` | 入力バリデーションをハンドラー内で実施 | `RequestValidator` へ委譲 | Handler責務をHTTP入出力へ限定するため | `POST /requests`, `GET /requests/{id}` |
+| `RequestValidator` | 未実装 | 新規追加し `validateCreateRequest(...)` と `validateRequestId(...)` を実装 | 設計で確定したValidator責務を実体化するため | `RequestApiHandler` |
+| `S3KeyBuilder` | Utilityとして実装済み | `RequestS3KeyBuilder` へ名称統一 | 受付API固有責務をクラス名で明示するため | `RequestService` |
+| `RequestService` | `S3KeyBuilder` を参照 | `RequestS3KeyBuilder` 参照へ更新 | 設計確定名との整合を取るため | `POST /requests` |
+
+#### 影響のみ（原則コード変更なし）
+
+| クラス名 | 影響内容 | 確認観点 |
+|---|---|---|
+| `CreateRequestInput` | Validator移管後も入力項目は不変 | `userId`, `fileName` の必須要件維持 |
+| `CreateRequestResponse` | 直接変更なし | `POST /requests` 正常系レスポンス不変 |
+| `RequestDetailResponse` | 直接変更なし | `GET /requests/{id}` 応答仕様不変 |
+| `RequestListResponse` | 直接変更なし | 一覧応答仕様不変 |
+| `RequestRepository` | 直接変更なし | DynamoDB I/O と項目マッピング不変 |
+| `RequestRecord` | 直接変更なし | 保存属性不変 |
+| `RequestStatus` | 直接変更なし | Enum値不変 |
+| `S3PresignService` | 直接変更なし | `s3Key` 入力契約不変 |
+| `RequestIdGenerator` | 直接変更なし | 採番契約不変 |
+| `TimeProvider` | 直接変更なし | 時刻生成契約不変 |
+| `ApiResponseBuilder` | 直接変更なし | レスポンス組み立て契約不変 |
+| `ObjectMapperFactory` | 直接変更なし | ObjectMapper生成方針不変 |
+| `AppConfig` | 直接変更なし | 環境変数契約不変 |
+| `ErrorResponse` | 直接変更なし | エラーレスポンス形式不変 |
+
+#### 保留（実装時に判断）
+
+| 項目 | 保留理由 | 解消条件 |
+|---|---|---|
+| `S3KeyBuilder` から `RequestS3KeyBuilder` への移行方式 | 直接リネームか、互換クラスを一時併用するかを決める必要がある | 実装時に参照箇所と差分量を確認し、最小変更で統一する |
 
 ### 責務分離の考え方
 
 - HandlerはHTTP入出力に専念する
+- Validatorは外部入力の妥当性チェックに専念する
 - Serviceは業務処理に専念する
 - RepositoryはDynamoDBアクセスに専念する
 - S3 Presigned URL生成は専用Serviceに分離する
-- S3キー生成やレスポンス生成などの共通処理はUtilityに分離する
+- 受付API固有のS3キー生成は、汎用Utilityではなく責務が明確な専用部品に寄せる
+- レスポンス生成やObjectMapper生成などの純粋な共通処理のみUtilityに置く
+
+### 機能設計の責務分解
+
+#### `POST /requests`
+
+- `RequestApiHandler`
+  - リクエストボディを受け取り、DTO変換と処理呼び出しを行う
+- `RequestValidator`
+  - `userId` と `fileName` の必須チェック、空文字チェック、形式チェックを行う
+- `RequestService`
+  - `requestId` 採番、時刻決定、`s3Key` 生成、初期 `status` 決定、保存処理とPresigned URL発行を調停する
+  - `CreateRequestResponse` の組み立てを行う
+- `RequestRepository`
+  - `RequestRecord` をDynamoDBへ保存する
+- `S3PresignService`
+  - 指定された `s3Key` に対するアップロード用URLを生成する
+- `RequestS3KeyBuilder`
+  - `uploads/{userId}/{requestId}/{fileName}` 形式のS3キーを生成する
+
+#### `GET /requests/{id}`
+
+- `RequestApiHandler`
+  - パスパラメータを取り出し、処理呼び出しとレスポンス変換を行う
+- `RequestValidator`
+  - `requestId` の必須チェック、空文字チェック、形式チェックを行う
+- `RequestService`
+  - `RequestRepository` へ対象取得を依頼し、未存在時の業務判断を行う
+  - `RequestDetailResponse` の組み立てを行う
+- `RequestRepository`
+  - `requestId` をキーにDynamoDBから単体取得する
+
+#### `GET /requests`
+
+- `RequestApiHandler`
+  - 一覧取得処理の呼び出しとレスポンス変換を行う
+- `RequestService`
+  - `RequestRepository` へ一覧取得を依頼し、`RequestListResponse` の組み立てを行う
+- `RequestRepository`
+  - 初期版は `Scan` により一覧取得を行う
+  - `Query / GSI / paging` などの最適化は後続課題として扱う
 
 ### 初期版の処理イメージ
 
 #### `POST /requests`
 
 1. `RequestApiHandler` がAPI Gatewayイベントを受け取る
-2. `CreateRequestInput` に変換する
+2. `CreateRequestInput` に変換し、`RequestValidator` で入力を検証する
 3. `RequestService` が `requestId` と `s3Key` を生成する
 4. `RequestRepository` がDynamoDBへ `RequestRecord` を保存する
 5. `S3PresignService` がアップロード用URLを生成する
@@ -687,8 +885,9 @@ flowchart LR
 #### `GET /requests/{id}`
 
 1. `RequestApiHandler` がパスパラメータを取得する
-2. `RequestService` が `RequestRepository` 経由で対象データを取得する
-3. `RequestDetailResponse` に変換して返す
+2. `RequestValidator` が `requestId` を検証する
+3. `RequestService` が `RequestRepository` 経由で対象データを取得する
+4. `RequestDetailResponse` に変換して返す
 
 #### `GET /requests`
 
