@@ -46,6 +46,12 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         this.requestValidator = new RequestValidator();
     }
 
+    RequestApiHandler(ObjectMapper objectMapper, RequestService requestService, RequestValidator requestValidator) {
+        this.objectMapper = objectMapper;
+        this.requestService = requestService;
+        this.requestValidator = requestValidator;
+    }
+
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
         try {
@@ -59,7 +65,7 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
             }
 
             if ("GET".equalsIgnoreCase(method) && path != null && path.matches("^/requests/[^/]+$")) {
-                String requestId = path.substring(path.lastIndexOf('/') + 1);
+                String requestId = extractRequestId(input);
                 requestValidator.validateRequestId(requestId);
                 return requestService.findRequestById(requestId)
                         .map(detail -> ApiResponseBuilder.json(200, writeJson(detail)))
@@ -87,5 +93,17 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         } catch (Exception e) {
             throw new IllegalStateException("Failed to serialize response", e);
         }
+    }
+
+    private String extractRequestId(APIGatewayProxyRequestEvent input) {
+        Map<String, String> pathParameters = input.getPathParameters();
+        if (pathParameters != null) {
+            String requestId = pathParameters.get("id");
+            if (requestId != null) {
+                return requestId;
+            }
+        }
+        String path = input.getPath();
+        return path.substring(path.lastIndexOf('/') + 1);
     }
 }
