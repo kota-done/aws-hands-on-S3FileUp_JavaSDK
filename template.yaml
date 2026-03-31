@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: File upload request API with Lambda, API Gateway, DynamoDB, and S3
+
+Globals:
+  Function:
+    Runtime: java21
+    MemorySize: 1024
+    Timeout: 30
+    Tracing: Active
+    Environment:
+      Variables:
+        REQUESTS_TABLE_NAME: !Ref RequestsTable
+        UPLOAD_BUCKET_NAME: !Ref UploadBucket
+        DDB_ENDPOINT: ""
+        S3_ENDPOINT: ""
+        DDB_REGION: ""
+        S3_REGION: ""
+
+Resources:
+  FileUpApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: "'*'"
+
+  RequestApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: com.example.fileupapi.handler.RequestApiHandler::handleRequest
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RequestsTable
+        - S3WritePolicy:
+            BucketName: !Ref UploadBucket
+      Events:
+        CreateRequest:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FileUpApi
+            Path: /requests
+            Method: POST
+        ListRequests:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FileUpApi
+            Path: /requests
+            Method: GET
+        GetRequest:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FileUpApi
+            Path: /requests/{id}
+            Method: GET
+    Metadata:
+      BuildMethod: java21
+
+  RequestsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: requestId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: requestId
+          KeyType: HASH
+      TableName: requests
+
+  UploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL for the deployed API
+    Value: !Sub "https://${FileUpApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+
+  RequestsTableName:
+    Description: DynamoDB table name
+    Value: !Ref RequestsTable
+
+  UploadBucketName:
+    Description: S3 bucket name
+    Value: !Ref UploadBucket
