@@ -571,6 +571,34 @@ flowchart LR
 - GUIでの実装と動作確認が完了した後、同内容をCLIまたはIaCで再現できるように整理する
 - 承認機能を追加する段階で、認可設計や公開範囲の拡張も合わせて検討する
 
+## テスト戦略方針（CI高速ローカル + AWS手動実環境）
+
+### 結論
+
+- PR必須CIは `mvn verify` を採用し、AWS非依存で高速に失敗検知する
+- AWS実環境テストは手動で実施し、クラウド依存項目を別レイヤで確認する
+- `sam + local emulation` は補助検証として位置付け、CI必須には含めない
+
+### 方針の理由
+
+- CIにクラウド依存テストを含めると、速度低下と不安定化で運用効率が下がる
+- Lambda/API Gateway/DynamoDB/S3 の実統合は、IAMや環境差分を含むため手動検証の価値が高い
+- 日常開発では高速フィードバックを優先し、実環境依存は意図的に分離する
+
+### 役割分担
+
+- CIで確認すること
+  - コンパイル、単体テスト、契約テスト（AWS非依存）
+  - 代表コマンド: `mvn --batch-mode --update-snapshots verify`
+- 手動AWSで確認すること
+  - API 3本の疎通 (`POST /requests`, `GET /requests`, `GET /requests/{id}`)
+  - DynamoDB保存/取得、S3 Presigned URL発行、CloudWatch Logs
+
+### 判定ルール
+
+- CI成功のみでは「AWSで動作確認完了」とは扱わない
+- AWS実環境スモーク成功を、環境反映の最終判定条件とする
+
 ## GUI実装手順
 
 ### 方針

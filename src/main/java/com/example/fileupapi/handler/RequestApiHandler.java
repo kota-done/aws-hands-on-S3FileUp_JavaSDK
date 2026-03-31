@@ -16,9 +16,13 @@ import com.example.fileupapi.util.ApiResponseBuilder;
 import com.example.fileupapi.util.ObjectMapperFactory;
 import com.example.fileupapi.validator.RequestValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
+import java.net.URI;
 import java.util.Map;
 
 public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
@@ -32,8 +36,8 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
 
     RequestApiHandler(ObjectMapper objectMapper, AppConfig config) {
         this.objectMapper = objectMapper;
-        DynamoDbClient dynamoDbClient = DynamoDbClient.create();
-        S3Presigner s3Presigner = S3Presigner.create();
+        DynamoDbClient dynamoDbClient = createDynamoDbClient(config);
+        S3Presigner s3Presigner = createS3Presigner(config);
 
         RequestRepository requestRepository = new RequestRepository(dynamoDbClient, config.requestsTableName());
         S3PresignService s3PresignService = new S3PresignService(s3Presigner, config.uploadBucketName());
@@ -105,5 +109,53 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         }
         String path = input.getPath();
         return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+    private DynamoDbClient createDynamoDbClient(AppConfig config) {
+        if (config.ddbEndpoint() == null) {
+            return DynamoDbClient.create();
+        }
+        return DynamoDbClient.builder()
+                .endpointOverride(URI.create(config.ddbEndpoint()))
+                .region(resolveRegion(config.ddbRegion(), "us-east-1"))
+                .credentialsProvider(resolveCredentialsProvider())
+                .build();
+    }
+
+    private S3Presigner createS3Presigner(AppConfig config) {
+        if (config.s3Endpoint() == null) {
+            return S3Presigner.create();
+        }
+        return S3Presigner.builder()
+                .endpointOverride(URI.create(config.s3Endpoint()))
+                .region(resolveRegion(config.s3Region(), "us-east-1"))
+                .credentialsProvider(resolveCredentialsProvider())
+                .build();
+    }
+
+    private Region resolveRegion(String explicitRegion, String defaultRegion) {
+        if (explicitRegion != null && !explicitRegion.isBlank()) {
+            return Region.of(explicitRegion);
+        }
+        String region = System.getenv("AWS_REGION");
+        if (region == null || region.isBlank()) {
+            region = System.getenv("AWS_DEFAULT_REGION");
+        }
+        if (region == null || region.isBlank()) {
+            region = defaultRegion;
+        }
+        return Region.of(region);
+    }
+
+    private StaticCredentialsProvider resolveCredentialsProvider() {
+        String accessKeyId = System.getenv("AWS_ACCESS_KEY_ID");
+        if (accessKeyId == null || accessKeyId.isBlank()) {
+            accessKeyId = "test";
+        }
+        String secretAccessKey = System.getenv("AWS_SECRET_ACCESS_KEY");
+        if (secretAccessKey == null || secretAccessKey.isBlank()) {
+            secretAccessKey = "test";
+        }
+        return StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKeyId, secretAccessKey));
     }
 }
