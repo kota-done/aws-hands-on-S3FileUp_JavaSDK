@@ -41,3 +41,4 @@ private/
 
 # Local article notes
 SESSION_ARTICLE.md
+env.local.json
