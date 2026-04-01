@@ -719,6 +719,43 @@ flowchart LR
 - 返却URLでS3へアップロードできる
 - `GET /requests/{id}` と `GET /requests` が動作する
 
+### 実施手順と確認コマンド（2026-04-01 GUI実施）
+
+1. S3バケットを作成する（パブリックアクセスはブロックのまま）
+2. DynamoDBテーブル `requests` を作成する
+   - パーティションキー: `requestId` (`String`)
+3. Lambda実行ロールを作成し、Lambda用ユースケースで信頼関係を設定する
+4. Lambda関数 `fileup-request-api` を作成する
+   - Runtime: `Java 21`
+   - Architecture: `x86_64`
+   - Handler: `com.example.fileupapi.handler.RequestApiHandler::handleRequest`
+5. Lambda環境変数を設定する
+   - `REQUESTS_TABLE_NAME=requests`
+   - `UPLOAD_BUCKET_NAME=<S3バケット名>`
+6. API Gateway REST APIを作成する
+   - `/requests`: `POST`, `GET`
+   - `/requests/{id}`: `GET`
+   - Lambda Proxy Integration を有効にし、同一Lambdaへ統合
+7. `Prod` ステージへデプロイし、Invoke URLを取得する
+
+確認コマンド:
+
+```bash
+curl -i -X POST "<INVOKE_URL>/requests" \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"u001","fileName":"a.txt"}'
+
+curl -i "<INVOKE_URL>/requests/<requestId>"
+curl -i "<INVOKE_URL>/requests"
+```
+
+確認ポイント:
+
+- `POST /requests` が `201` で `requestId` と `uploadUrl` を返すこと
+- `GET /requests/{id}` が `200` で単票を返すこと
+- `GET /requests` が `200` で一覧を返すこと
+- DynamoDB `requests` テーブルに対象レコードが保存されること
+
 ## Javaクラス設計
 
 ### 方針
