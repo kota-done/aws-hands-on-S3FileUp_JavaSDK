@@ -756,6 +756,18 @@ curl -i "<INVOKE_URL>/requests"
 - `GET /requests` が `200` で一覧を返すこと
 - DynamoDB `requests` テーブルに対象レコードが保存されること
 
+### SAMデプロイでの実環境再検証（2026-04-02）
+
+GUI検証後、`template.yaml` を基準に `sam deploy --guided` を実施し、`ApiBaseUrl` で再検証した。  
+その結果、次を確認した。
+
+- `POST /requests` が成功する
+- `GET /requests/{id}` が成功する
+- `GET /requests` が成功する
+- DynamoDB `requests` テーブルへの保存が継続して確認できる
+
+これにより、GUIで理解した構成をSAM経由でも再現できることを確認した。
+
 ## Javaクラス設計
 
 ### 方針
