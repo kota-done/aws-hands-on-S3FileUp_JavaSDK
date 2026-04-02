@@ -29,6 +29,7 @@ override.tf.json
 .aws-sam/
 packaged.yaml
 packaged.yml
+samconfig.toml
 
 # Environment / secrets
 .env

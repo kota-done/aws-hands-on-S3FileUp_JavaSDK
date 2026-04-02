@@ -2,16 +2,24 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: File upload request API with Lambda, API Gateway, DynamoDB, and S3
 
+Parameters:
+  UploadBucketName:
+    Type: String
+    Default: handson-fileups3-javasdk-992382700208-ap-northeast-1-an
+  RequestsTableName:
+    Type: String
+    Default: requests
+
 Globals:
   Function:
     Runtime: java21
-    MemorySize: 1024
-    Timeout: 30
+    MemorySize: 512
+    Timeout: 15
     Tracing: Active
     Environment:
       Variables:
-        REQUESTS_TABLE_NAME: !Ref RequestsTable
-        UPLOAD_BUCKET_NAME: !Ref UploadBucket
+        REQUESTS_TABLE_NAME: !Ref RequestsTableName
+        UPLOAD_BUCKET_NAME: !Ref UploadBucketName
         DDB_ENDPOINT: ""
         S3_ENDPOINT: ""
         DDB_REGION: ""
@@ -21,7 +29,10 @@ Resources:
   FileUpApi:
     Type: AWS::Serverless::Api
     Properties:
+      Name: fileup-request-api
       StageName: Prod
+      EndpointConfiguration:
+        Type: REGIONAL
       Cors:
         AllowMethods: "'GET,POST,OPTIONS'"
         AllowHeaders: "'Content-Type'"
@@ -30,13 +41,14 @@ Resources:
   RequestApiFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: fileup-request-api
       CodeUri: .
       Handler: com.example.fileupapi.handler.RequestApiHandler::handleRequest
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref RequestsTable
+            TableName: !Ref RequestsTableName
         - S3WritePolicy:
-            BucketName: !Ref UploadBucket
+            BucketName: !Ref UploadBucketName
       Events:
         CreateRequest:
           Type: Api
@@ -59,27 +71,6 @@ Resources:
     Metadata:
       BuildMethod: java21
 
-  RequestsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: requestId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: requestId
-          KeyType: HASH
-      TableName: requests
-
-  UploadBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
 Outputs:
   ApiBaseUrl:
     Description: Base URL for the deployed API
@@ -87,8 +78,8 @@ Outputs:
 
   RequestsTableName:
     Description: DynamoDB table name
-    Value: !Ref RequestsTable
+    Value: !Ref RequestsTableName
 
   UploadBucketName:
     Description: S3 bucket name
-    Value: !Ref UploadBucket
+    Value: !Ref UploadBucketName
