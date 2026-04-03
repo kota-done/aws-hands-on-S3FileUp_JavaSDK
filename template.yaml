@@ -71,6 +71,31 @@ Resources:
     Metadata:
       BuildMethod: java21
 
+  RequestStatusUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: fileup-request-status-update
+      CodeUri: .
+      Handler: com.example.fileupapi.handler.RequestStatusUpdateHandler::handleRequest
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RequestsTableName
+      Events:
+        S3ObjectCreatedEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.s3
+              detail-type:
+                - Object Created
+              detail:
+                bucket:
+                  name:
+                    - !Ref UploadBucketName
+    Metadata:
+      BuildMethod: java21
+
 Outputs:
   ApiBaseUrl:
     Description: Base URL for the deployed API
