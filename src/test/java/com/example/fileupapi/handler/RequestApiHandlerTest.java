@@ -22,6 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class RequestApiHandlerTest {
     private final ObjectMapper objectMapper = ObjectMapperFactory.create();
 
+    // 正常系: POST /requests が成功する場合
+    // 確認項目:
+    // - ステータスコードが 201
+    // - Content-Typeが application/json
+    // - レスポンスbodyの主要項目が期待値一致
+    // - Serviceへ渡すCreateRequestInputが期待値一致
     @Test
     void handleRequest_CheckCreateResponse_withPostRequestsPath() throws Exception {
         StubRequestService requestService = new StubRequestService();
@@ -54,6 +60,11 @@ class RequestApiHandlerTest {
         assertEquals("sample.txt", requestService.lastCreateInput.fileName());
     }
 
+    // 正常系: GET /requests/{id} で pathParameters.id を優先して取得できる場合
+    // 確認項目:
+    // - ステータスコードが 200
+    // - レスポンスbodyのrequestId, userIdが期待値一致
+    // - Service呼び出しrequestIdが pathParameters.id の値
     @Test
     void handleRequest_CheckRequestDetailResponse_withGetRequestIdPathAndPathParameterId() throws Exception {
         StubRequestService requestService = new StubRequestService();
@@ -82,6 +93,10 @@ class RequestApiHandlerTest {
         assertEquals("req-11111111-1111-1111-1111-111111111111", requestService.lastFindByIdRequestId);
     }
 
+    // 異常系: GET /requests/{id} で対象が存在しない場合
+    // 確認項目:
+    // - ステータスコードが 404
+    // - エラーメッセージが "Request not found"
     @Test
     void handleRequest_CheckNotFoundResponse_withGetRequestIdPathAndMissingRecord() throws Exception {
         StubRequestService requestService = new StubRequestService();
@@ -99,6 +114,10 @@ class RequestApiHandlerTest {
         assertEquals("Request not found", body.get("message").asText());
     }
 
+    // 正常系: GET /requests/{id} で pathParameters未指定時にpathからフォールバック抽出できる場合
+    // 確認項目:
+    // - ステータスコードが 200
+    // - Service呼び出しrequestIdがpath末尾から抽出される
     @Test
     void handleRequest_CheckRequestDetailResponse_withGetRequestIdPathAndFallbackFromPath() throws Exception {
         StubRequestService requestService = new StubRequestService();
@@ -123,6 +142,10 @@ class RequestApiHandlerTest {
         assertEquals("req-11111111-1111-1111-1111-111111111111", requestService.lastFindByIdRequestId);
     }
 
+    // 境界系: GET /requests/{id} で pathParameters.id の形式が不正な場合
+    // 確認項目:
+    // - ステータスコードが 400
+    // - エラーメッセージが "requestId format is invalid"
     @Test
     void handleRequest_CheckBadRequestResponse_withGetRequestIdPathAndInvalidPathParameterId() throws Exception {
         StubRequestService requestService = new StubRequestService();
@@ -140,6 +163,10 @@ class RequestApiHandlerTest {
         assertEquals("requestId format is invalid", body.get("message").asText());
     }
 
+    // 異常系: POST /requests の入力バリデーションに失敗する場合
+    // 確認項目:
+    // - ステータスコードが 400
+    // - エラーメッセージが "userId is required"
     @Test
     void handleRequest_CheckBadRequestResponse_withInvalidCreateRequestBody() throws Exception {
         StubRequestService requestService = new StubRequestService();
@@ -157,6 +184,10 @@ class RequestApiHandlerTest {
         assertEquals("userId is required", body.get("message").asText());
     }
 
+    // 境界系: 未定義ルートの場合
+    // 確認項目:
+    // - ステータスコードが 404
+    // - エラーメッセージが "Route not found"
     @Test
     void handleRequest_CheckNotFoundResponse_withUnknownRoute() throws Exception {
         StubRequestService requestService = new StubRequestService();
@@ -173,6 +204,10 @@ class RequestApiHandlerTest {
         assertEquals("Route not found", body.get("message").asText());
     }
 
+    // 境界系: /requests/ (末尾スラッシュ付き) は非対応ルートとして扱う場合
+    // 確認項目:
+    // - ステータスコードが 404
+    // - エラーメッセージが "Route not found"
     @Test
     void handleRequest_CheckNotFoundResponse_withRequestsPathTrailingSlash() throws Exception {
         StubRequestService requestService = new StubRequestService();
@@ -189,6 +224,10 @@ class RequestApiHandlerTest {
         assertEquals("Route not found", body.get("message").asText());
     }
 
+    // 異常系: 一覧取得処理でService例外が発生する場合
+    // 確認項目:
+    // - ステータスコードが 500
+    // - エラーメッセージが "Internal server error"
     @Test
     void handleRequest_CheckInternalServerErrorResponse_withServiceExceptionOnList() throws Exception {
         StubRequestService requestService = new StubRequestService();
