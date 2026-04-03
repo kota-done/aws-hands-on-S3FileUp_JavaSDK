@@ -169,7 +169,12 @@
 ### Javadoc 方針
 
 - クラスには役割が分かる Javadoc を付与する
-- 公開メソッドには、必要に応じて引数、戻り値、送出例外が分かる Javadoc を付与する
+- `public` / `protected` メソッドには、原則として `@param` `@return` を付与する
+- 例外を送出する設計のメソッドには、必要に応じて `@throws` を付与する
+- コンストラクタには用途を明記し、必要に応じて `@param` を付与する
+  - 例: Lambdaランタイム用、依存組み立て用、テスト注入用
+- `package-private` / `private` メソッドでも、責務が誤解されやすい箇所は同形式の Javadoc を付与してよい
+- Javadocには「何をするか」に加え、「なぜ必要か」を1行で補足する
 - 特に外部公開に近いクラスや責務が誤解されやすいクラスでは Javadoc を優先する
 
 ### コメントを許容するケース
@@ -177,6 +182,77 @@
 - AWS の制約や前提に依存する処理
 - 分岐理由や設計判断を明示する必要がある処理
 - 将来拡張時に意図が失われやすい箇所
+
+### Javadoc コメント例
+
+クラス:
+
+```java
+/**
+ * S3のObject Createdイベントを受け取り、受付状態を更新するハンドラー.
+ *
+ * EventBridge経由で通知されたイベントを処理し、受付状態反映をAPI処理から分離するために使用する。
+ */
+```
+
+コンストラクタ（用途明記）:
+
+```java
+/**
+ * Lambdaランタイム用のデフォルトコンストラクタ.
+ *
+ * 環境変数から設定を読み取り、本番実行に必要な依存を組み立てる。
+ */
+public RequestStatusUpdateHandler() {
+}
+
+/**
+ * 設定値をもとに依存を組み立てるコンストラクタ.
+ *
+ * @param config 環境変数から解決したアプリケーション設定
+ */
+RequestStatusUpdateHandler(AppConfig config) {
+}
+
+/**
+ * テストや差し替えのために依存を注入するコンストラクタ.
+ *
+ * @param requestRepository 状態更新対象の永続化アクセス
+ * @param timeProvider 更新時刻を供給する部品
+ */
+RequestStatusUpdateHandler(RequestRepository requestRepository, TimeProvider timeProvider) {
+}
+```
+
+メソッド（公開メソッド）:
+
+```java
+/**
+ * EventBridgeイベントを処理し、対象受付の状態を更新する.
+ *
+ * @param input Lambdaに渡されるイベントペイロード
+ * @param context Lambda実行コンテキスト
+ * @return 更新成功時は "UPDATED"、対象外または更新不可の場合は "IGNORED"
+ */
+@Override
+public String handleRequest(Map<String, Object> input, Context context) {
+}
+```
+
+メソッド（非公開メソッド、null返却条件あり）:
+
+```java
+/**
+ * S3キーから受付IDを抽出する.
+ *
+ * uploads/{userId}/{requestId}/{fileName}形式に一致しない場合はnullを返す。
+ *
+ * @param objectKey S3オブジェクトキー
+ * @return 抽出したrequestId。抽出できない場合はnull
+ */
+private String extractRequestId(String objectKey) {
+}
+```
 
 ### コメントを避けるケース
 
