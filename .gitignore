@@ -41,5 +41,6 @@ private/
 .ssh/
 
 # Local article notes
-SESSION_ARTICLE.md
+docs/articles/SESSION_ARTICLE.md
 env.local.json
+docs/runbooks/SAM_LOCAL_TEST_RUNBOOK.md
