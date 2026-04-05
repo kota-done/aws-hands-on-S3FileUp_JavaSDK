@@ -144,7 +144,7 @@ public class RequestStatusUpdateHandler implements RequestHandler<Map<String, Ob
         }
         return DynamoDbClient.builder()
                 .endpointOverride(URI.create(config.ddbEndpoint()))
-                .region(resolveRegion(config.ddbRegion(), "us-east-1"))
+                .region(resolveRegion(config.ddbRegion(), "ap-northeast-1"))
                 .credentialsProvider(resolveCredentialsProvider())
                 .build();
     }

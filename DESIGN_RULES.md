@@ -254,6 +254,75 @@ private String extractRequestId(String objectKey) {
 }
 ```
 
+### テストコメント方針
+
+- テストメソッドの直前に、テスト観点を短く記載する
+- コメントには「確認項目」を箇条書きで明示し、アサーション意図を一覧化する
+
+## 公式リファレンス確認ルール
+
+### 基本方針
+
+- 採用する技術要素（SDK設定、エンドポイント、URL形式、接続方式）は、実装前に公式リファレンスを確認する
+- 推測や一般論だけで設定値を採用しない
+- 公式根拠を確認できない場合は「未確認」と明記し、採用判断を保留する
+
+### 運用ルール
+
+- 設計判断を行うときは、根拠となる公式URLを `SPEC.md` または記事メモに残す
+- エラー発生時は、まず公式仕様の解釈（Host/Path判定、必須前提、制約）に照らして原因を確認する
+- ローカル検証用設定でも、本番想定の方式と整合するかを確認する
+- 手順書の変更で実行値（endpoint/region/認証/接続方式）が変わる場合は、同時に実行設定ファイル（例: `env.local.json`）を更新する
+- 手順書更新後は、完了報告前に次を必ず突合する
+  - 手順書の期待値
+  - 実行設定ファイルの実値
+  - 設定変更後の再起動実施有無
+  - 再実行レスポンスへの反映有無
+
+### 具体例（S3 + LocalStack）
+
+- S3 Presigned URL は、Host/Path の解釈で bucket/key 判定が変わる
+- LocalStackのS3接続では、Path-style / Virtual-hosted-styleの公式記述に従って設定する
+- 接続方式の誤りは `NoSuchBucket` などの誤判定につながるため、方式を先に固定してから実装する
+- 設計書がなくても、テストコード単体で確認範囲が分かることを優先する
+- コメントはテスト名と矛盾しない内容にする
+
+### テストコメント例
+
+```java
+// 正常系: S3イベントで状態更新できること
+// 確認項目:
+// - 戻り値が "UPDATED"
+// - 抽出requestIdが "req-123"
+// - 更新statusが COMPLETED
+// - 更新updatedAtが固定時刻 "2026-04-04T00:00:00Z"
+@Test
+void handleRequest_CheckCompletedUpdate_withS3ObjectCreatedEvent() {
+}
+```
+
+```java
+// 境界系: オブジェクトキー形式が不正な場合
+// 確認項目:
+// - 戻り値が "IGNORED"
+// - requestIdが抽出されず null のまま
+// - 更新処理が実質実行されない（Repository呼び出し条件を満たさない）
+@Test
+void handleRequest_CheckIgnoredResult_withInvalidObjectKey() {
+}
+```
+
+```java
+// 異常系: requestIdは抽出できるが更新対象が存在しない場合
+// 確認項目:
+// - 戻り値が "IGNORED"
+// - 抽出requestIdが "req-999"
+// - 更新結果false時に例外化せず終了する
+@Test
+void handleRequest_CheckIgnoredResult_withMissingRequestRecord() {
+}
+```
+
 ### コメントを避けるケース
 
 - コードを読めば分かる逐語的な説明

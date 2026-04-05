@@ -168,7 +168,7 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         }
         return DynamoDbClient.builder()
                 .endpointOverride(URI.create(config.ddbEndpoint()))
-                .region(resolveRegion(config.ddbRegion(), "us-east-1"))
+                .region(resolveRegion(config.ddbRegion(), "ap-northeast-1"))
                 .credentialsProvider(resolveCredentialsProvider())
                 .build();
     }
@@ -185,7 +185,7 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         }
         return S3Presigner.builder()
                 .endpointOverride(URI.create(config.s3Endpoint()))
-                .region(resolveRegion(config.s3Region(), "us-east-1"))
+                .region(resolveRegion(config.s3Region(), "ap-northeast-1"))
                 .credentialsProvider(resolveCredentialsProvider())
                 .build();
     }
