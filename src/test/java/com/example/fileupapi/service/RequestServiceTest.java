@@ -20,6 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RequestServiceTest {
+    // 正常系: 受付作成時に保存とレスポンス生成が成功する場合
+    // 確認項目:
+    // - レスポンス項目（requestId, userId, fileName, s3Key, status, uploadUrl, createdAt, updatedAt）
+    // - Repositoryへ1件保存される
+    // - 保存statusが RECEIVED
     @Test
     void createRequest_CheckPersistAndResponseMapping_withValidInput() {
         InMemoryRequestRepository repository = new InMemoryRequestRepository();
@@ -45,6 +50,10 @@ class RequestServiceTest {
         assertEquals(RequestStatus.RECEIVED, repository.findAll().get(0).status());
     }
 
+    // 正常系: requestId指定で既存データを取得できる場合
+    // 確認項目:
+    // - Optionalが存在する
+    // - DTO項目が保存データと一致する
     @Test
     void findRequestById_CheckResponseMapping_withExistingRequestId() {
         InMemoryRequestRepository repository = new InMemoryRequestRepository();
@@ -79,6 +88,9 @@ class RequestServiceTest {
         );
     }
 
+    // 異常系: requestId指定で対象が存在しない場合
+    // 確認項目:
+    // - Optionalが空で返る
     @Test
     void findRequestById_CheckNotFoundHandling_withUnknownRequestId() {
         InMemoryRequestRepository repository = new InMemoryRequestRepository();
@@ -94,6 +106,10 @@ class RequestServiceTest {
         assertFalse(response.isPresent());
     }
 
+    // 正常系: 複数レコードの一覧を取得できる場合
+    // 確認項目:
+    // - 件数が2件
+    // - 各要素のDTO項目が保存データと一致する
     @Test
     void listRequests_CheckResponseMapping_withMultipleRecords() {
         InMemoryRequestRepository repository = new InMemoryRequestRepository();

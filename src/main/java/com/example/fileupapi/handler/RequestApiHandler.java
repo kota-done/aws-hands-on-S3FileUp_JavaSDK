@@ -25,15 +25,31 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import java.net.URI;
 import java.util.Map;
 
+/**
+ * 受付APIのLambdaハンドラー.
+ *
+ * API Gatewayイベントの振り分けとレスポンス変換を担当し、業務処理はServiceへ委譲する。
+ */
 public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
     private final ObjectMapper objectMapper;
     private final RequestService requestService;
     private final RequestValidator requestValidator;
 
+    /**
+     * Lambdaランタイム用のデフォルトコンストラクタ.
+     *
+     * 共通ObjectMapperと環境変数設定を使って本番依存を組み立てる。
+     */
     public RequestApiHandler() {
         this(ObjectMapperFactory.create(), AppConfig.fromEnv());
     }
 
+    /**
+     * 設定値を使って依存を組み立てるコンストラクタ.
+     *
+     * @param objectMapper JSON入出力で使用するObjectMapper
+     * @param config 環境変数から解決したアプリケーション設定
+     */
     RequestApiHandler(ObjectMapper objectMapper, AppConfig config) {
         this.objectMapper = objectMapper;
         DynamoDbClient dynamoDbClient = createDynamoDbClient(config);
@@ -50,12 +66,26 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         this.requestValidator = new RequestValidator();
     }
 
+    /**
+     * テストや差し替え用に依存を注入するコンストラクタ.
+     *
+     * @param objectMapper JSON入出力で使用するObjectMapper
+     * @param requestService 受付業務処理サービス
+     * @param requestValidator 入力検証部品
+     */
     RequestApiHandler(ObjectMapper objectMapper, RequestService requestService, RequestValidator requestValidator) {
         this.objectMapper = objectMapper;
         this.requestService = requestService;
         this.requestValidator = requestValidator;
     }
 
+    /**
+     * API Gatewayイベントを処理し、対応するAPIレスポンスを返す.
+     *
+     * @param input API Gatewayから渡されるリクエストイベント
+     * @param context Lambda実行コンテキスト
+     * @return API Gatewayレスポンス
+     */
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
         try {
@@ -91,6 +121,13 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         }
     }
 
+    /**
+     * レスポンスオブジェクトをJSONへ変換する.
+     *
+     * @param value JSON化対象オブジェクト
+     * @return JSON文字列
+     * @throws IllegalStateException JSON変換に失敗した場合
+     */
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -99,6 +136,14 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         }
     }
 
+    /**
+     * リクエストからrequestIdを抽出する.
+     *
+     * pathParameters.idを優先し、未設定時のみpath文字列から抽出する。
+     *
+     * @param input API Gatewayリクエストイベント
+     * @return 抽出したrequestId
+     */
     private String extractRequestId(APIGatewayProxyRequestEvent input) {
         Map<String, String> pathParameters = input.getPathParameters();
         if (pathParameters != null) {
@@ -111,28 +156,47 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         return path.substring(path.lastIndexOf('/') + 1);
     }
 
+    /**
+     * 設定に応じてDynamoDBクライアントを生成する.
+     *
+     * @param config 環境変数から解決したアプリケーション設定
+     * @return 生成したDynamoDBクライアント
+     */
     private DynamoDbClient createDynamoDbClient(AppConfig config) {
         if (config.ddbEndpoint() == null) {
             return DynamoDbClient.create();
         }
         return DynamoDbClient.builder()
                 .endpointOverride(URI.create(config.ddbEndpoint()))
-                .region(resolveRegion(config.ddbRegion(), "us-east-1"))
+                .region(resolveRegion(config.ddbRegion(), "ap-northeast-1"))
                 .credentialsProvider(resolveCredentialsProvider())
                 .build();
     }
 
+    /**
+     * 設定に応じてS3Presignerを生成する.
+     *
+     * @param config 環境変数から解決したアプリケーション設定
+     * @return 生成したS3Presigner
+     */
     private S3Presigner createS3Presigner(AppConfig config) {
         if (config.s3Endpoint() == null) {
             return S3Presigner.create();
         }
         return S3Presigner.builder()
                 .endpointOverride(URI.create(config.s3Endpoint()))
-                .region(resolveRegion(config.s3Region(), "us-east-1"))
+                .region(resolveRegion(config.s3Region(), "ap-northeast-1"))
                 .credentialsProvider(resolveCredentialsProvider())
                 .build();
     }
 
+    /**
+     * 利用リージョンを解決する.
+     *
+     * @param explicitRegion 設定で明示されたリージョン
+     * @param defaultRegion フォールバック時に使う既定リージョン
+     * @return 解決したリージョン
+     */
     private Region resolveRegion(String explicitRegion, String defaultRegion) {
         if (explicitRegion != null && !explicitRegion.isBlank()) {
             return Region.of(explicitRegion);
@@ -147,6 +211,11 @@ public class RequestApiHandler implements RequestHandler<APIGatewayProxyRequestE
         return Region.of(region);
     }
 
+    /**
+     * 認証情報プロバイダを解決する.
+     *
+     * @return 解決した資格情報プロバイダ
+     */
     private StaticCredentialsProvider resolveCredentialsProvider() {
         String accessKeyId = System.getenv("AWS_ACCESS_KEY_ID");
         if (accessKeyId == null || accessKeyId.isBlank()) {

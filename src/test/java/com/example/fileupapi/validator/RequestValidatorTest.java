@@ -10,6 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class RequestValidatorTest {
     private final RequestValidator validator = new RequestValidator();
 
+    // 正常系: 受付作成入力が有効な場合
+    // 確認項目:
+    // - 例外が発生しない
     @Test
     void validateCreateRequest_CheckValidInput_withValidInput() {
         CreateRequestInput input = new CreateRequestInput("user-001", "sample.pdf");
@@ -17,6 +20,10 @@ class RequestValidatorTest {
         assertDoesNotThrow(() -> validator.validateCreateRequest(input));
     }
 
+    // 異常系: リクエストボディがnullの場合
+    // 確認項目:
+    // - IllegalArgumentExceptionが送出される
+    // - メッセージが "Request body is required"
     @Test
     void validateCreateRequest_CheckRequiredRequestBody_withNullRequest() {
         IllegalArgumentException exception = assertThrows(
@@ -27,6 +34,10 @@ class RequestValidatorTest {
         assertEquals("Request body is required", exception.getMessage());
     }
 
+    // 異常系: userIdが空白のみの場合
+    // 確認項目:
+    // - IllegalArgumentExceptionが送出される
+    // - メッセージが "userId is required"
     @Test
     void validateCreateRequest_CheckRequiredUserId_withBlankUserId() {
         CreateRequestInput input = new CreateRequestInput("   ", "sample.pdf");
@@ -39,6 +50,10 @@ class RequestValidatorTest {
         assertEquals("userId is required", exception.getMessage());
     }
 
+    // 異常系: userIdがnullの場合
+    // 確認項目:
+    // - IllegalArgumentExceptionが送出される
+    // - メッセージが "userId is required"
     @Test
     void validateCreateRequest_CheckRequiredUserId_withNullUserId() {
         CreateRequestInput input = new CreateRequestInput(null, "sample.pdf");
@@ -51,6 +66,10 @@ class RequestValidatorTest {
         assertEquals("userId is required", exception.getMessage());
     }
 
+    // 異常系: fileNameが空白のみの場合
+    // 確認項目:
+    // - IllegalArgumentExceptionが送出される
+    // - メッセージが "fileName is required"
     @Test
     void validateCreateRequest_CheckRequiredFileName_withBlankFileName() {
         CreateRequestInput input = new CreateRequestInput("user-001", "   ");
@@ -63,6 +82,10 @@ class RequestValidatorTest {
         assertEquals("fileName is required", exception.getMessage());
     }
 
+    // 異常系: fileNameがnullの場合
+    // 確認項目:
+    // - IllegalArgumentExceptionが送出される
+    // - メッセージが "fileName is required"
     @Test
     void validateCreateRequest_CheckRequiredFileName_withNullFileName() {
         CreateRequestInput input = new CreateRequestInput("user-001", null);
@@ -75,11 +98,18 @@ class RequestValidatorTest {
         assertEquals("fileName is required", exception.getMessage());
     }
 
+    // 正常系: requestId形式が有効な場合
+    // 確認項目:
+    // - 例外が発生しない
     @Test
     void validateRequestId_CheckFormatValidation_withValidFormat() {
         assertDoesNotThrow(() -> validator.validateRequestId("req-123e4567-e89b-12d3-a456-426614174000"));
     }
 
+    // 異常系: requestIdが空白のみの場合
+    // 確認項目:
+    // - IllegalArgumentExceptionが送出される
+    // - メッセージが "requestId is required"
     @Test
     void validateRequestId_CheckRequiredRequestId_withBlankRequestId() {
         IllegalArgumentException exception = assertThrows(
@@ -90,6 +120,10 @@ class RequestValidatorTest {
         assertEquals("requestId is required", exception.getMessage());
     }
 
+    // 異常系: requestId形式が不正な場合
+    // 確認項目:
+    // - IllegalArgumentExceptionが送出される
+    // - メッセージが "requestId format is invalid"
     @Test
     void validateRequestId_CheckFormatValidation_withInvalidFormat() {
         IllegalArgumentException exception = assertThrows(
