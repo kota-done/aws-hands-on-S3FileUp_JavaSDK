@@ -27,6 +27,7 @@ override.tf.json
 
 # AWS SAM / CloudFormation artifacts
 .aws-sam/
+.artifacts/
 packaged.yaml
 packaged.yml
 samconfig.toml
