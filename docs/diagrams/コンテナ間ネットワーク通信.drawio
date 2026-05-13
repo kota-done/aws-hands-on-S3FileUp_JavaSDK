@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="container-network" name="コンテナ間ネットワーク通信">
-        <mxGraphModel dx="1048" dy="603" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1100" math="0" shadow="0">
+        <mxGraphModel dx="1342" dy="535" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1100" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -128,16 +128,6 @@
                 </mxCell>
                 <mxCell id="e3-label" value="DDB/S3 API" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#666666;fillColor=#ffffff;fontSize=10;" parent="1" vertex="1">
                     <mxGeometry x="1122.3222872340425" y="573.731304347826" width="83.07478723404255" height="22.75113043478261" as="geometry"/>
-                </mxCell>
-                <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;dashed=1;" parent="1" source="localstack" target="status-fn" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <Array as="points">
-                            <mxPoint x="1376.161914893617" y="757.4904347826086"/>
-                        </Array>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e4-label" value="Object Created event" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#666666;fillColor=#ffffff;fontSize=10;" parent="1" vertex="1">
-                    <mxGeometry x="1256.165" y="722.4886956521739" width="119.99691489361702" height="22.75113043478261" as="geometry"/>
                 </mxCell>
                 <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;" parent="1" source="status-fn" target="localstack" edge="1">
                     <mxGeometry relative="1" as="geometry">

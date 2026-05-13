@@ -620,14 +620,58 @@ flowchart LR
 - CIで確認すること
   - コンパイル、単体テスト、契約テスト（AWS非依存）
   - 代表コマンド: `mvn --batch-mode --update-snapshots verify`
+  - `template.yaml` 変更PR時のみ、`SAM + LocalStack` のLTを別workflowで自動実行する（`local-lt`）
+  - LTはローカル契約確認として、Lambda返却の `uploadUrl` を無変更でPUTし、実行成功可否（HTTP 2xx）を中心に検証する
+  - URL文字列の理想形を固定せず、`POST -> uploadUrl PUT -> GET` の疎通成立を契約とする
 - 手動AWSで確認すること
   - API 3本の疎通 (`POST /requests`, `GET /requests`, `GET /requests/{id}`)
   - DynamoDB保存/取得、S3 Presigned URL発行、CloudWatch Logs
+  - 本番URL契約（AWSドメイン/IAM含む）はAWS実環境スモークで保証する
+  - 実S3 PUTを起点とする `S3 -> EventBridge -> Lambda -> DynamoDB` の自動連鎖はAWS実環境のみを契約保証対象とする
 
 ### 判定ルール
 
 - CI成功のみでは「AWSで動作確認完了」とは扱わない
 - AWS実環境スモーク成功を、環境反映の最終判定条件とする
+- LTのrequired check化は段階導入とし、初期は参考チェック運用で安定後に必須化する
+
+### LocalStack EventBridge採用判断（2026-05）
+
+- 本プロジェクトは本番契約優先とし、`S3 -> EventBridge -> RequestStatusUpdateHandler` の構成自体は維持する
+- 一方でLTでは、LocalStack EventBridgeを「S3 PUT起点の自動発火契約」の主保証手段には置かない
+- 判断根拠は公式一次情報に限定する
+  - LocalStack EventBridgeページは `PutEvents` 中心で、`S3` / `aws.s3` / `Object Created` の明示を確認できない
+  - 確認したLocalStack S3ページ一次情報範囲でも、`S3 Event Notification -> EventBridge` 契約保証を明示確認できない
+- そのため、LocalStack EventBridgeは「カスタムイベント投入検証」用途に限定して扱う
+
+### LTとAWSスモークの責務分離（2026-05）
+
+- LT（ローカル）で保証する範囲
+  - `POST /requests` の受付成功
+  - 返却された Presigned URL への PUT 成功（HTTP 2xx）
+  - `sam local invoke` による `RequestStatusUpdateFunction` 直接起動で業務ロジック確認
+  - 段2 invoke も `fileup-lt-net` で実行し、`DDB_ENDPOINT=http://localstack:4566` を同一ネットワーク文脈で利用する
+- ステータス更新シナリオ方針
+  - 目的は「EventBridge配線の完全再現」ではなく、`RequestStatusUpdateFunction` の状態更新契約（`RECEIVED -> COMPLETED`）確認とする
+  - LTではイベントJSONの本番完全一致を保証対象にしない
+  - ハンドラーが必要とする最小入力（`detail.object.key`）を満たす入力で更新処理の成立を確認する
+- AWS実環境スモークで保証する範囲
+  - 実S3 PUTを起点に `S3 -> EventBridge -> Lambda -> DynamoDB(status=COMPLETED)` まで自動連鎖すること
+
+### LT障害記録: Presigned URLのPUT名前解決エラー（2026-05-02）
+
+- 事象
+  - `request_upload_flow_scenario` のPUT段階で `curl: (6) Could not resolve host: fileupapi-local-uploads.localstack` が発生し、LTが失敗した。
+  - POSTは成功し、`uploadUrl` は `http://fileupapi-local-uploads.localstack:4566/...` 形式で返却されていた。
+- 原因
+  - PUT実行主体がホストOSの `curl` である一方、返却された `uploadUrl` のホスト `*.localstack` はDocker内部ネットワークの名前解決スコープを前提としていた。
+  - そのため、ホストOS DNSでは `*.localstack` を解決できず、S3 PUT到達前に名前解決で失敗した。
+- 解決方針
+  - 本番挙動（AWS向けのPresigned URL生成）を変えないことを優先し、アプリ本体ロジックの固定化は避ける。
+  - LT側でPUT実行経路を調整し、`uploadUrl` の名前解決スコープと実行主体を一致させる。
+- 解決後の追記ルール
+  - 実施した解決手順（どのスクリプトをどう変更したか）を記録する。
+  - 再実行結果（`POST -> PUT -> GET` の成功可否、確認ログパス）を記録する。
 
 ## GUI実装手順
 

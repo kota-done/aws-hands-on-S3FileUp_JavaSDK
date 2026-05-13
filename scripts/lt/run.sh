@@ -278,8 +278,9 @@ run_start_api() {
 }
 
 # 指定シナリオを呼び出し、失敗時はFAILED_PHASEを引き継ぐ
-run_scenario() {
-  local scenario_script="${ROOT_DIR}/scripts/lt/scenarios/${SCENARIO}.sh"
+run_single_scenario() {
+  local scenario_name="$1"
+  local scenario_script="${ROOT_DIR}/scripts/lt/scenarios/${scenario_name}.sh"
   local failure_file="${RUN_LOG_DIR}/failed_phase"
   rm -f "${failure_file}"
 
@@ -295,6 +296,12 @@ run_scenario() {
   export LT_SCENARIO_LOG="${SCENARIO_LOG}"
   export LT_DETAILS_DIR="${DETAILS_DIR}"
   export LT_SCENARIO_FAILURE_FILE="${failure_file}"
+  export LT_LOCALSTACK_CONTAINER="${LOCALSTACK_CONTAINER}"
+  export LT_AWS_REGION="${AWS_REGION}"
+  export LT_REQUESTS_TABLE_NAME="${REQUESTS_TABLE_NAME}"
+  export LT_UPLOAD_BUCKET_NAME="${UPLOAD_BUCKET_NAME}"
+  export LT_ROOT_DIR="${ROOT_DIR}"
+  export LT_DOCKER_NETWORK="${LT_DOCKER_NETWORK}"
 
   if ! bash "${scenario_script}"; then
     if [[ -f "${failure_file}" ]]; then
@@ -308,6 +315,16 @@ run_scenario() {
     fi
     exit 1
   fi
+  log_info "scenario completed name=${scenario_name}"
+}
+
+run_scenario() {
+  run_single_scenario "${SCENARIO}"
+
+  if [[ "${SCENARIO}" == "request_upload_flow_scenario" ]]; then
+    run_single_scenario "request_status_update_simulated_event_scenario"
+  fi
+
   log_info "scenario phase completed"
 }
 
