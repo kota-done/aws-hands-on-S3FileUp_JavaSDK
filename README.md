@@ -21,3 +21,16 @@ AWS公式ハンズオンでは、上記を満たすハンズオンが存在し�
 実行の様子や手順を以下にまとめています。
 
 https://qiita.com/kota-done/items/c84ac6eacb596d6a02ad
+
+### LT
+テスト構成
+
+<img width="1251" height="606" alt="スクリーンショット 2026-05-13 20 35 48" src="https://github.com/user-attachments/assets/0f0786bb-aafe-40f6-a1c7-df60cd4bc999" />
+
+
+詳細は以下記事をご確認ください。
+
+https://qiita.com/kota-done/items/b41f9488f76c1b896ccc
+
+#### 起動条件
+template.yaml修正＋GitへのPull時に自動で起動するように設定しています。
