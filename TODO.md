@@ -11,10 +11,14 @@
 ## Pending
 
 - `GET /requests` の一覧取得は初期版では `Scan` とし、後続で `Query / GSI / paging` 最適化の要否を見直す
-- SAMローカル検証で `S3_ENDPOINT` の公式推奨設定（`s3.localhost.localstack.cloud`）を反映し、`POST -> PUT -> GET` を再確認する
+- SAMローカル検証は、Lambda返却の `uploadUrl` を無変更でPUTし、実行成功可否（HTTP 2xx）を中心に契約テストとして運用する
+- URL文字列の理想形固定ではなく、`POST -> uploadUrl PUT -> GET` の疎通成立を判定基準とする
 - `SAM_LOCAL_TEST_RUNBOOK.md` に公式リファレンス確認手順と、`NoSuchBucket` 系エラーの切り分けを最終反映する
 - S3 PUT後に `status=COMPLETED` へ反映されるまでの確認手順（再取得間隔/タイムアウト目安）を明文化する
-- 必要に応じて、SAMローカル手動検証を半自動化するスクリプト化を検討する
+- LTのrequired check化を、参考チェック運用の安定確認後に切り替えるタイミングを決める
+- LTのPUT実行経路を見直し、`*.localstack` 名前解決差異（ホストOSとDocker内部DNS）を吸収する実行方式へ統一する
+- LT責務を「API受付+Presigned URL PUT」と「疑似イベントでの状態更新ロジック確認」に分離して運用する
+- AWS実環境スモークに `S3 -> EventBridge -> Lambda -> DynamoDB(status=COMPLETED)` 自動連鎖確認を必須項目として明記する
 
 ## In Progress
 
@@ -53,6 +57,8 @@
 - S3 Object Createdを契機に `status=COMPLETED` を更新する `RequestStatusUpdateHandler` を実装した
 - テストメソッドコメント方針とJavadoc方針を設計ルールへ反映し、既存テストへ適用した
 - 設計/記事/ナレッジへ「採用技術は公式リファレンス確認後に採用する」ルールを追記した
+- LocalStack EventBridgeをLTの主契約保証手段にしない判断（公式一次情報にS3 PUT起点自動連鎖の明示不足）を確定した
+- LTシナリオを2段化し、`sam local invoke` による `RequestStatusUpdateFunction` 直接起動で `RECEIVED -> COMPLETED` を確認する運用を反映した
 
 ## Waiting For User
 
@@ -66,3 +72,7 @@
 - 初期版の `POST /requests` は `userId` と `fileName` を受け取る
 - `SESSION_ARTICLE.md` と `.codex/knowledge.md` に、S3 LocalStack設定での失敗事例と再発防止（公式確認必須）を記録済み
 - 公式リファレンス未確認の設定値は、採用せず保留する
+- LT自動化は `scripts/lt/run.sh`（共通ランナー）+ `scripts/lt/scenarios/request_upload_flow_scenario.sh`（シナリオ）で分離した
+- ステータス更新シナリオは `scripts/lt/scenarios/request_status_update_simulated_event_scenario.sh` へ分離し、目的を「Lambda状態更新契約の確認」に固定した
+- ステータス更新シナリオの invoke を `--docker-network fileup-lt-net` 指定へ統一し、`DDB_ENDPOINT=http://localstack:4566` の名前解決前提を段1/段2で一致させた
+- LT CIは `template.yaml` 変更PR時のみ `local-lt` workflow を起動する
